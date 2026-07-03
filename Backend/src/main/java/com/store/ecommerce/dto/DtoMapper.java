@@ -2,6 +2,7 @@ package com.store.ecommerce.dto;
 
 import com.store.ecommerce.model.*;
 import java.util.stream.Collectors;
+import com.store.ecommerce.model.ProductImage;
 
 public class DtoMapper {
 
@@ -23,6 +24,16 @@ public class DtoMapper {
         dto.setStock(product.getStock());
         dto.setCategory(product.getCategory());
         dto.setImageUrl(product.getImageUrl());
+        
+        if (product.getImages() != null) {
+            dto.setImages(product.getImages()
+                .stream()
+                .sorted((a, b) -> a.getDisplayOrder() - b.getDisplayOrder())
+                .map(ProductImage::getImageUrl)
+                .collect(java.util.stream.Collectors.toList()));
+        } else {
+            dto.setImages(new java.util.ArrayList<>());
+        }
         return dto;
     }
 

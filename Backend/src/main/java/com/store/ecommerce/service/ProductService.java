@@ -1,6 +1,8 @@
 package com.store.ecommerce.service;
 
 import com.store.ecommerce.model.Product;
+import com.store.ecommerce.model.ProductImage;
+import com.store.ecommerce.repository.ProductImageRepository;
 import com.store.ecommerce.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -11,6 +13,7 @@ import java.util.List;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final ProductImageRepository productImageRepository;
 
     public List<Product> getAllProducts() {
         return productRepository.findAll();
@@ -46,5 +49,16 @@ public class ProductService {
 
     public List<Product> getProductsByCategory(String category) {
         return productRepository.findByCategory(category);
+    }
+    public Product addImages(Long productId, List<String> imageUrls) {
+        Product product = getProductById(productId);
+        for (int i = 0; i < imageUrls.size(); i++) {
+            ProductImage img = new ProductImage();
+            img.setProduct(product);
+            img.setImageUrl(imageUrls.get(i));
+            img.setDisplayOrder(i);
+            productImageRepository.save(img);
+        }
+        return productRepository.findById(productId).orElseThrow();
     }
 }

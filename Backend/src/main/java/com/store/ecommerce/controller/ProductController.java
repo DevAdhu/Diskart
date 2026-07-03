@@ -62,4 +62,12 @@ public class ProductController {
         productService.deleteProduct(id);
         return ResponseEntity.noContent().build();
     }
+    @PostMapping("/{id}/images")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ProductDto> addImages(
+            @PathVariable Long id,
+            @RequestBody List<String> imageUrls) {
+        return ResponseEntity.ok(DtoMapper.toProductDto(
+            productService.addImages(id, imageUrls)));
+    }
 }
