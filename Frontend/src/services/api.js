@@ -4,14 +4,40 @@ const API = axios.create({
   baseURL: 'http://localhost:8080/api',
 });
 
+// Request Interceptor
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 
+
+API.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    if (
+      error.response &&
+      (error.response.status === 401 || error.response.status === 403)
+    ) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+
+      alert('Your session has expired. Please login again.');
+
+      window.location.href = '/login';
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// Continue with your APIs
 export const authAPI = {
   login: (data) => API.post('/auth/login', data),
   register: (data) => API.post('/auth/register', data),
