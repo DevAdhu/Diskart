@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { productAPI } from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import { FaShoppingCart, FaSearch } from 'react-icons/fa';
 
 const Home = () => {
@@ -11,7 +10,7 @@ const Home = () => {
   const [cart, setCart] = useState(
     JSON.parse(localStorage.getItem('cart')) || []
   );
-  const { user } = useAuth();
+  
   const navigate = useNavigate();
 
   useEffect(() => {

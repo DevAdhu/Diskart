@@ -17,20 +17,25 @@ const Orders = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!user) { navigate('/login'); return; }
-    loadOrders();
-  }, []);
-
+useEffect(() => {
   const loadOrders = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
     try {
       const res = await orderAPI.getMyOrders(user.id);
       setOrders(res.data.reverse());
     } catch (err) {
       console.error(err);
     }
+
     setLoading(false);
   };
+
+  loadOrders();
+}, [user, navigate]); 
 
   if (loading) return (
     <div style={styles.loading}>Loading orders...</div>
