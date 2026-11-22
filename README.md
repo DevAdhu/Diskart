@@ -2,6 +2,8 @@
 
 A full-stack e-commerce application built with **Spring Boot 3.5 (Java 17)** and **React 19**. It supports a customer shopping flow (browse, search, filter, cart, place orders, track orders) and an admin flow (manage products and update order statuses). The frontend is a responsive **PWA**, so it runs in a browser on PC and can be installed as an app on Android.
 
+For cloud deployment, see [DEPLOYMENT.md](DEPLOYMENT.md) — it includes exact Railway + Vercel steps for this monorepo.
+
 ## Repository layout
 
 ```
