@@ -1,84 +1,159 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { orderAPI } from '../services/api';
 
 const statusColors = {
-  PENDING:   { bg: '#fff8e1', color: '#f57f17' },
+  PENDING: { bg: '#fff8e1', color: '#f57f17' },
   CONFIRMED: { bg: '#e3f2fd', color: '#1565c0' },
-  SHIPPED:   { bg: '#f3e5f5', color: '#6a1b9a' },
+  SHIPPED: { bg: '#f3e5f5', color: '#6a1b9a' },
   DELIVERED: { bg: '#e8f5e9', color: '#2e7d32' },
   CANCELLED: { bg: '#ffebee', color: '#c62828' },
 };
 
+const statuses = ['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
+
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('mine'); // 'mine' | 'all' (admin only)
   const { user } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
+  const isAdmin = (user?.role || '').toUpperCase() === 'ADMIN';
 
-useEffect(() => {
-  const loadOrders = async () => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
+  useEffect(() => {
+    const loadOrders = async () => {
+      if (!user) {
+        navigate('/login');
+        return;
+      }
 
+      setLoading(true);
+      try {
+        const res =
+          isAdmin && view === 'all'
+            ? await orderAPI.getAllOrders()
+            : await orderAPI.getMyOrders();
+        const list = Array.isArray(res.data) ? res.data : [];
+        setOrders(list.slice().reverse());
+      } catch (err) {
+        console.error(err);
+      }
+      setLoading(false);
+    };
+
+    loadOrders();
+  }, [user, view, isAdmin, navigate]);
+
+  const handleStatusChange = async (orderId, status) => {
     try {
-      const res = await orderAPI.getMyOrders(user.id);
-      setOrders(res.data.reverse());
+      await orderAPI.updateStatus(orderId, status);
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === orderId ? { ...order, status } : order
+        )
+      );
+      showToast(`Order #${orderId} marked ${status}`, 'success');
     } catch (err) {
-      console.error(err);
+      showToast(err.response?.data?.error || 'Could not update status', 'error');
     }
-
-    setLoading(false);
   };
 
-  loadOrders();
-}, [user, navigate]); 
+  if (loading) {
+    return <div style={styles.loading}>Loading orders...</div>;
+  }
 
-  if (loading) return (
-    <div style={styles.loading}>Loading orders...</div>
-  );
-
-  if (orders.length === 0) return (
-    <div style={styles.empty}>
-      <h2>No orders yet!</h2>
-      <button
-        className="btn-primary"
-        style={{marginTop:16}}
-        onClick={() => navigate('/')}>
-        Start Shopping
-      </button>
-    </div>
-  );
+  if (orders.length === 0) {
+    return (
+      <div style={styles.empty}>
+        <h2>No orders yet!</h2>
+        <button
+          className="btn-primary"
+          style={{ marginTop: 16 }}
+          onClick={() => navigate('/')}
+        >
+          Start Shopping
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.page}>
-      <h2 style={styles.title}>My Orders</h2>
-      {orders.map(order => (
-        <div key={order.id} style={styles.card}>
-          <div style={styles.header}>
-            <div>
+      <div style={styles.titleRow}>
+        <h2 style={styles.title}>{isAdmin && view === 'all' ? 'All Orders' : 'My Orders'}</h2>
+        {isAdmin && (
+          <div style={styles.viewSwitch}>
+            <button
+              style={{
+                ...styles.viewBtn,
+                ...(view === 'all' ? styles.viewBtnActive : {}),
+              }}
+              onClick={() => setView('all')}
+            >
+              All Orders
+            </button>
+            <button
+              style={{
+                ...styles.viewBtn,
+                ...(view === 'mine' ? styles.viewBtnActive : {}),
+              }}
+              onClick={() => setView('mine')}
+            >
+              My Orders
+            </button>
+          </div>
+        )}
+      </div>
+
+      {orders.map((order) => (
+        <div key={order.id} style={styles.card} className="orders-card">
+          <div style={styles.header} className="orders-header">
+            <div style={styles.headerLeft}>
               <span style={styles.orderId}>Order #{order.id}</span>
               <span style={styles.date}>
                 {new Date(order.createdAt).toLocaleDateString('en-IN', {
-                  day:'numeric', month:'long', year:'numeric'
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
                 })}
               </span>
+              {isAdmin && order.customerName && (
+                <span style={styles.customer}>{order.customerName}</span>
+              )}
             </div>
-            <span style={{
-              ...styles.status,
-              background: statusColors[order.status]?.bg,
-              color: statusColors[order.status]?.color,
-            }}>
-              {order.status}
-            </span>
+            <div style={styles.statusArea}>
+              {isAdmin && (
+                <select
+                  value={order.status}
+                  onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                  style={styles.statusSelect}
+                  aria-label={`Status for order ${order.id}`}
+                >
+                  {statuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <span
+                style={{
+                  ...styles.status,
+                  background: statusColors[order.status]?.bg,
+                  color: statusColors[order.status]?.color,
+                }}
+              >
+                {order.status}
+              </span>
+            </div>
           </div>
 
           <div style={styles.items}>
             {order.items?.map((item, i) => (
-              <div key={i} style={styles.item}>
+              <div key={i} style={styles.item} className="orders-item">
                 <span style={styles.itemName}>{item.productName}</span>
                 <span style={styles.itemQty}>Qty: {item.quantity}</span>
                 <span style={styles.itemPrice}>
@@ -100,16 +175,29 @@ useEffect(() => {
 };
 
 const styles = {
-  page: {
-    maxWidth: 800,
-    margin: '20px auto',
-    padding: '0 16px',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 500,
+  page: { maxWidth: 800, margin: '20px auto', padding: '0 16px' },
+  titleRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 12,
     marginBottom: 20,
+  },
+  title: { fontSize: 22, fontWeight: 500, color: '#212121' },
+  viewSwitch: { display: 'flex', gap: 8 },
+  viewBtn: {
+    background: 'white',
     color: '#212121',
+    border: '1px solid #ddd',
+    padding: '8px 14px',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  viewBtnActive: {
+    background: '#2874f0',
+    color: 'white',
+    border: '1px solid #2874f0',
   },
   card: {
     background: 'white',
@@ -122,30 +210,36 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
     padding: '14px 20px',
     borderBottom: '1px solid #f0f0f0',
     background: '#fafafa',
   },
-  orderId: {
-    fontWeight: 600,
-    fontSize: 15,
-    marginRight: 12,
-  },
-  date: {
+  headerLeft: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  orderId: { fontWeight: 600, fontSize: 15 },
+  date: { fontSize: 13, color: '#878787' },
+  customer: { fontSize: 13, color: '#555', fontWeight: 500 },
+  statusArea: { display: 'flex', alignItems: 'center', gap: 10 },
+  statusSelect: {
+    width: 'auto',
+    marginBottom: 0,
+    padding: '6px 8px',
     fontSize: 13,
-    color: '#878787',
   },
   status: {
     padding: '4px 12px',
     borderRadius: 20,
     fontSize: 12,
     fontWeight: 600,
+    whiteSpace: 'nowrap',
   },
   items: { padding: '12px 20px' },
   item: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
     padding: '8px 0',
     borderBottom: '1px solid #f9f9f9',
     fontSize: 14,
@@ -159,11 +253,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'flex-end',
   },
-  total: {
-    fontSize: 16,
-    fontWeight: 700,
-    color: '#212121',
-  },
+  total: { fontSize: 16, fontWeight: 700, color: '#212121' },
   loading: { textAlign: 'center', padding: 60, color: '#666' },
   empty: { textAlign: 'center', padding: 80 },
 };

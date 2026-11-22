@@ -25,7 +25,7 @@ public class Order {
     private User user;
     
     @JsonIgnore
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<OrderItem> items = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)

@@ -1,77 +1,70 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
+import { useToast } from '../context/ToastContext';
 import { orderAPI } from '../services/api';
 import { FaTrash, FaPlus, FaMinus } from 'react-icons/fa';
 
 const Cart = () => {
-  const [cart, setCart] = useState(
-    JSON.parse(localStorage.getItem('cart')) || []
-  );
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
+  const { cart, updateQty, removeItem, clearCart, total } = useCart();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
-  const updateQty = (id, delta) => {
-    const updated = cart.map(item =>
-      item.id === id
-        ? { ...item, qty: Math.max(1, item.qty + delta) }
-        : item
-    );
-    setCart(updated);
-    localStorage.setItem('cart', JSON.stringify(updated));
-  };
-
-  const removeItem = (id) => {
-    const updated = cart.filter(item => item.id !== id);
-    setCart(updated);
-    localStorage.setItem('cart', JSON.stringify(updated));
-  };
-
-  const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-
   const placeOrder = async () => {
-    if (!user) { navigate('/login'); return; }
-    if (cart.length === 0) { alert('Cart is empty!'); return; }
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (cart.length === 0) {
+      showToast('Cart is empty!', 'error');
+      return;
+    }
     setLoading(true);
     try {
-      await orderAPI.place(user.id, {
-        productIds: cart.map(i => i.id),
-        quantities: cart.map(i => i.qty),
+      // The user is identified by the JWT; no userId is sent.
+      await orderAPI.place({
+        productIds: cart.map((i) => i.id),
+        quantities: cart.map((i) => i.qty),
       });
-      localStorage.removeItem('cart');
-      setCart([]);
-      alert('Order placed successfully!');
+      clearCart();
+      showToast('Order placed successfully!', 'success');
       navigate('/orders');
     } catch (err) {
-      alert(err.response?.data?.error || 'Order failed');
+      showToast(err.response?.data?.error || 'Order failed', 'error');
     }
     setLoading(false);
   };
 
-  if (cart.length === 0) return (
-    <div style={styles.empty}>
-      <h2>Your cart is empty!</h2>
-      <button
-        className="btn-primary"
-        style={{marginTop:16}}
-        onClick={() => navigate('/')}>
-        Continue Shopping
-      </button>
-    </div>
-  );
+  if (cart.length === 0) {
+    return (
+      <div style={styles.empty}>
+        <h2>Your cart is empty!</h2>
+        <button
+          className="btn-primary"
+          style={{ marginTop: 16 }}
+          onClick={() => navigate('/')}
+        >
+          Continue Shopping
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div style={styles.page}>
+    <div style={styles.page} className="cart-page">
       <div style={styles.left}>
         <h2 style={styles.title}>My Cart ({cart.length} items)</h2>
-        {cart.map(item => (
-          <div key={item.id} style={styles.item}>
+        {cart.map((item) => (
+          <div key={item.id} style={styles.item} className="cart-item">
             <div style={styles.itemImg}>
-              {item.imageUrl
-                ? <img src={item.imageUrl} alt={item.name} style={styles.img} />
-                : <div style={styles.noImg}>No Image</div>
-              }
+              {item.imageUrl ? (
+                <img src={item.imageUrl} alt={item.name} style={styles.img} />
+              ) : (
+                <div style={styles.noImg}>No Image</div>
+              )}
             </div>
             <div style={styles.itemInfo}>
               <p style={styles.itemName}>{item.name}</p>
@@ -84,19 +77,24 @@ const Cart = () => {
               <div style={styles.qtyRow}>
                 <button
                   style={styles.qtyBtn}
-                  onClick={() => updateQty(item.id, -1)}>
+                  aria-label="Decrease quantity"
+                  onClick={() => updateQty(item.id, -1)}
+                >
                   <FaMinus />
                 </button>
                 <span style={styles.qty}>{item.qty}</span>
                 <button
                   style={styles.qtyBtn}
-                  onClick={() => updateQty(item.id, 1)}>
+                  aria-label="Increase quantity"
+                  onClick={() => updateQty(item.id, 1)}
+                >
                   <FaPlus />
                 </button>
               </div>
               <button
                 style={styles.removeBtn}
-                onClick={() => removeItem(item.id)}>
+                onClick={() => removeItem(item.id)}
+              >
                 <FaTrash /> Remove
               </button>
             </div>
@@ -104,11 +102,11 @@ const Cart = () => {
         ))}
       </div>
 
-      <div style={styles.right}>
+      <div style={styles.right} className="cart-right">
         <div style={styles.summary}>
           <h3 style={styles.summaryTitle}>PRICE DETAILS</h3>
           <hr />
-          {cart.map(item => (
+          {cart.map((item) => (
             <div key={item.id} style={styles.summaryRow}>
               <span>{item.name} x{item.qty}</span>
               <span>₹{(item.price * item.qty).toLocaleString('en-IN')}</span>
@@ -117,26 +115,30 @@ const Cart = () => {
           <hr />
           <div style={styles.summaryRow}>
             <span>Delivery</span>
-            <span style={{color:'green'}}>FREE</span>
+            <span style={{ color: 'green' }}>FREE</span>
           </div>
           <hr />
-          <div style={{...styles.summaryRow, fontWeight:700, fontSize:16}}>
+          <div style={{ ...styles.summaryRow, fontWeight: 700, fontSize: 16 }}>
             <span>Total Amount</span>
             <span>₹{total.toLocaleString('en-IN')}</span>
           </div>
           <button
             style={styles.orderBtn}
             onClick={placeOrder}
-            disabled={loading}>
+            disabled={loading}
+          >
             {loading ? 'Placing Order...' : 'Place Order'}
           </button>
           {!user && (
             <p style={styles.loginNote}>
-              Please <span
-                style={{color:'#2874f0',cursor:'pointer'}}
-                onClick={() => navigate('/login')}>
+              Please{' '}
+              <span
+                style={{ color: '#2874f0', cursor: 'pointer' }}
+                onClick={() => navigate('/login')}
+              >
                 login
-              </span> to place order
+              </span>{' '}
+              to place order
             </p>
           )}
         </div>
@@ -154,7 +156,7 @@ const styles = {
     gap: 16,
     alignItems: 'flex-start',
   },
-  left: { flex: 1 },
+  left: { flex: 1, minWidth: 0 },
   title: {
     background: 'white',
     padding: '16px 20px',
@@ -182,7 +184,7 @@ const styles = {
   },
   img: { maxWidth: 90, maxHeight: 90, objectFit: 'contain' },
   noImg: { color: '#aaa', fontSize: 12 },
-  itemInfo: { flex: 1 },
+  itemInfo: { flex: 1, minWidth: 0 },
   itemName: { fontSize: 15, fontWeight: 500, marginBottom: 4 },
   itemCat: { fontSize: 13, color: '#878787', marginBottom: 8 },
   itemPrice: { fontSize: 16, fontWeight: 700 },
@@ -204,7 +206,7 @@ const styles = {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    fontSize: 12,
+    fontSize: 14,
     color: '#2874f0',
     padding: 4,
   },
@@ -235,6 +237,7 @@ const styles = {
   summaryRow: {
     display: 'flex',
     justifyContent: 'space-between',
+    gap: 8,
     fontSize: 14,
     margin: '10px 0',
   },
@@ -256,10 +259,7 @@ const styles = {
     color: '#666',
     marginTop: 12,
   },
-  empty: {
-    textAlign: 'center',
-    padding: 80,
-  },
+  empty: { textAlign: 'center', padding: 80 },
 };
 
 export default Cart;

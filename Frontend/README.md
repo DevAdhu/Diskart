@@ -1,70 +1,60 @@
-# Getting Started with Create React App
+# DisKart Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React 19 + react-router-dom 7 e-commerce frontend for DisKart. The backend is a Spring Boot REST API; JWT auth tokens are stored in `localStorage`.
 
-## Available Scripts
+## Setup
 
-In the project directory, you can run:
+1. Install dependencies:
 
-### `npm start`
+   ```bash
+   npm install
+   ```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+2. Copy `.env.example` to `.env` and point it at your backend:
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+   ```bash
+   cp .env.example .env
+   ```
 
-### `npm test`
+   `REACT_APP_API_URL` defaults to `http://localhost:8080/api` when not set. Restart the dev server after editing `.env`.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+3. Start the app:
 
-### `npm run build`
+   ```bash
+   npm start
+   ```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+   Open http://localhost:3000.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Scripts
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+| Script | Description |
+| --- | --- |
+| `npm start` | Run the dev server with hot reload. |
+| `npm run build` | Create an optimized production build in `build/`. |
+| `npm test` | Run tests in watch mode. |
 
-### `npm run eject`
+## Features
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+- Product catalogue with search, category filter, sorting (name/price) and pagination.
+- Product detail page with image gallery and quantity picker.
+- Shared cart context (`CartContext`) so the cart stays in sync across pages; persisted to `localStorage`.
+- Authentication with protected `/cart` and `/orders` routes and an admin-only `/admin/products` area.
+- Admin product management: create, edit and delete products.
+- Orders with latest-first listing and admin status updates; customers see coloured status badges.
+- Toast notifications instead of blocking `alert()` dialogs.
+- 404 fallback page and responsive layout for phone, tablet and desktop.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Installing as a PWA
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+The production build registers `service-worker.js` and uses `manifest.json`, so the app can be installed offline-capable.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+**Android (Chrome):** open the deployed HTTPS site, tap the three-dot menu, then **Install app** / **Add to Home screen**.
 
-## Learn More
+**PC (Chrome / Edge):** open the site, click the install icon in the address bar, or use **More tools → Install this site as an app**.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+> Service workers require HTTPS (or `localhost`) and are only registered in production builds (`npm run build`). Serve the `build/` folder with a static server (for example `npx serve build`) to try the installed experience locally.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## API expectations
 
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+All endpoints are relative to `REACT_APP_API_URL`. The user is identified from the `Authorization: Bearer <token>` header, not from request bodies. See the report from the frontend integration for the full endpoint contract.

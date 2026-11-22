@@ -1,6 +1,7 @@
 package com.store.ecommerce.service;
 
 import com.store.ecommerce.config.JwtUtil;
+import com.store.ecommerce.exception.ConflictException;
 import com.store.ecommerce.dto.LoginRequestDto;
 import com.store.ecommerce.dto.RegisterRequestDto;
 import com.store.ecommerce.dto.UserDto;
@@ -8,6 +9,7 @@ import com.store.ecommerce.dto.DtoMapper;
 import com.store.ecommerce.model.User;
 import com.store.ecommerce.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import java.util.HashMap;
@@ -23,10 +25,10 @@ public class AuthService {
 
     public Map<String, Object> login(LoginRequestDto request) {
         User user = userRepository.findByEmail(request.getEmail())
-            .orElseThrow(() -> new RuntimeException("Invalid email or password"));
+            .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid email or password");
+            throw new BadCredentialsException("Invalid email or password");
         }
 
         String token = jwtUtil.generateToken(user.getEmail());
@@ -39,7 +41,7 @@ public class AuthService {
 
     public UserDto register(RegisterRequestDto request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already registered");
+            throw new ConflictException("Email already registered");
         }
 
         User user = new User();

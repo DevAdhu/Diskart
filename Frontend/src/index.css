@@ -7,7 +7,46 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Keep layouts inside the viewport on phones. */
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+img {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+@media (max-width: 480px) {
+  body { font-size: 14px; }
+
+  /* 16px prevents iOS Safari from zooming when an input gets focus. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  button {
+    font-size: 14px;
+    padding: 12px 16px;
+  }
 }

@@ -4,6 +4,7 @@ import com.store.ecommerce.dto.LoginRequestDto;
 import com.store.ecommerce.dto.RegisterRequestDto;
 import com.store.ecommerce.dto.UserDto;
 import com.store.ecommerce.service.AuthService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,13 +19,13 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(
-            @RequestBody LoginRequestDto request) {
+            @Valid @RequestBody LoginRequestDto request) {
         return ResponseEntity.ok(authService.login(request));
     }
 
     @PostMapping("/register")
     public ResponseEntity<UserDto> register(
-            @RequestBody RegisterRequestDto request) {
+            @Valid @RequestBody RegisterRequestDto request) {
         return ResponseEntity.ok(authService.register(request));
     }
 }

@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL,
+  // Falls back to a local Spring Boot API when the env var is not set.
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8080/api',
+  timeout: 10000,
 });
 
 // Request Interceptor
@@ -15,29 +17,31 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-
 API.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   (error) => {
-    if (
-      error.response &&
-      (error.response.status === 401 || error.response.status === 403)
-    ) {
+    const status = error.response?.status;
+
+    if (status === 401 || status === 403) {
+      const wasLoggedIn = Boolean(localStorage.getItem('token'));
+
+      // Always clean up stored credentials.
       localStorage.removeItem('token');
       localStorage.removeItem('user');
 
-      alert('Your session has expired. Please login again.');
-
-      window.location.href = '/login';
+      // Gentle handling: no hard window.location redirect (which loops on
+      // protected pages). Let the app react to the event instead. AuthContext
+      // clears its user state, so ProtectedRoute sends the user to /login,
+      // and ToastContext shows a single non-blocking message.
+      if (wasLoggedIn && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:session-expired'));
+      }
     }
 
     return Promise.reject(error);
   }
 );
 
-// Continue with your APIs
 export const authAPI = {
   login: (data) => API.post('/auth/login', data),
   register: (data) => API.post('/auth/register', data),
@@ -46,18 +50,33 @@ export const authAPI = {
 export const productAPI = {
   getAll: () => API.get('/products'),
   getById: (id) => API.get(`/products/${id}`),
-  search: (keyword) => API.get(`/products/search?keyword=${keyword}`),
-  getByCategory: (cat) => API.get(`/products/category/${cat}`),
+  // Paged / sorted / filtered catalogue used by Home.
+  getPaged: ({ page = 0, size = 12, sort = 'name,asc', keyword = '', category = '' } = {}) =>
+    API.get('/products/paged', {
+      params: {
+        page,
+        size,
+        sort,
+        ...(keyword ? { keyword } : {}),
+        ...(category ? { category } : {}),
+      },
+    }),
+  search: (keyword) => API.get('/products/search', { params: { keyword } }),
+  getByCategory: (cat) => API.get(`/products/category/${encodeURIComponent(cat)}`),
   create: (data) => API.post('/products', data),
   update: (id, data) => API.put(`/products/${id}`, data),
   delete: (id) => API.delete(`/products/${id}`),
+  // Backend expects a raw JSON array of URL strings, not an object wrapper.
+  uploadImages: (id, urls) => API.post(`/products/${id}/images`, urls),
 };
 
 export const orderAPI = {
-  place: (userId, data) => API.post(`/orders/place?userId=${userId}`, data),
-  getMyOrders: (userId) => API.get(`/orders/user/${userId}`),
+  // The backend derives the customer from the JWT — no userId in the request.
+  place: (data) => API.post('/orders/place', data),
+  getMyOrders: () => API.get('/orders/mine'),
+  getAllOrders: () => API.get('/orders'),
   updateStatus: (orderId, status) =>
-    API.patch(`/orders/${orderId}/status?status=${status}`),
+    API.patch(`/orders/${orderId}/status`, null, { params: { status } }),
 };
 
 export const userAPI = {
