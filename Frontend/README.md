@@ -36,7 +36,11 @@ React 19 + react-router-dom 7 e-commerce frontend for DisKart. The backend is a 
 
 ## Features
 
-- Product catalogue with search, category filter, sorting (name/price) and pagination.
+- Product catalogue with search (debounced type-ahead suggestions), category pills, price/brand/rating filters, active filter chips, sorting (name/price) and pagination.
+- Wishlist with a shared `WishlistContext`: heart icons on product cards and detail page, a protected `/wishlist` page, a Navbar count badge, guest storage in `localStorage` and automatic server reconciliation on login.
+- Recently viewed strip (last 8 products, most recent first, stored in `localStorage`) on the Home page.
+- "Customers also bought" recommendations on the product detail page.
+- Order tracking timeline (collapsible "Track order") and customer cancellation for `PENDING`/`CONFIRMED` orders.
 - Product detail page with image gallery and quantity picker.
 - Shared cart context (`CartContext`) so the cart stays in sync across pages; persisted to `localStorage`.
 - Authentication with protected `/cart`, `/checkout`, `/addresses`, `/orders` and `/orders/:id/invoice` routes and an admin-only `/admin/products` area.
@@ -73,5 +77,9 @@ All endpoints are relative to `REACT_APP_API_URL`. The user is identified from t
 - `POST /payments/razorpay/order`, `/verify`, `/failure` for checkout.
 - `GET/POST/DELETE /products/{id}/reviews[/{reviewId}]` for reviews.
 - `GET /orders/{id}` for invoices, in addition to the existing order endpoints.
+- `GET /wishlist`, `POST /wishlist/{productId}`, `DELETE /wishlist/{productId}` (all return the updated `List<ProductDto>`).
+- `GET /products/brands` → `List<String>`; `GET /products/suggest?q=&limit=8` → `List<ProductDto>`; `GET /products/{id}/recommendations?limit=6` → `List<ProductDto>`.
+- `GET /products/paged` additionally accepts `minPrice`, `maxPrice`, `brand` and `minRating`. Selected brands are sent as one comma-separated `brand` parameter (e.g. `brand=Apple,Samsung`).
+- `GET /orders/{id}/history` → `[{id,status,note,changedAt}]`; `POST /orders/{id}/cancel` → updated `OrderDto`.
 
 The checkout breakdown is an estimate: subtotal = sum of item prices × quantities, GST = 18% of subtotal, shipping = ₹40 below ₹499 (free otherwise). The backend computes the authoritative amounts and returns them in the order and Razorpay order response.

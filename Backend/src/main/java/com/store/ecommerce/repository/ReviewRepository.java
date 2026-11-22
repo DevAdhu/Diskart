@@ -19,4 +19,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     /** Returns null when the product has no reviews yet. */
     @Query("select avg(r.rating) from Review r where r.product.id = :productId")
     Double findAverageRatingByProductId(@Param("productId") Long productId);
+
+    /** Product ids whose average rating is at least the given threshold. */
+    @Query("select r.product.id from Review r "
+            + "group by r.product.id having avg(r.rating) >= :minRating")
+    List<Long> findProductIdsWithAverageRatingAtLeast(@Param("minRating") double minRating);
 }

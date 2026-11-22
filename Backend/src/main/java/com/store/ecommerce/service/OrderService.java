@@ -6,11 +6,13 @@ import com.store.ecommerce.exception.ResourceNotFoundException;
 import com.store.ecommerce.model.Address;
 import com.store.ecommerce.model.Order;
 import com.store.ecommerce.model.OrderItem;
+import com.store.ecommerce.model.OrderStatusHistory;
 import com.store.ecommerce.model.Product;
 import com.store.ecommerce.model.User;
 import com.store.ecommerce.repository.OrderRepository;
 import com.store.ecommerce.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +22,6 @@ import java.math.RoundingMode;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class OrderService {
 
     private static final BigDecimal TAX_RATE = new BigDecimal("0.18");
@@ -31,6 +32,22 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final UserService userService;
+    private final OrderStatusHistoryService historyService;
+
+    /** Kept for callers that do not participate in status-history recording. */
+    public OrderService(OrderRepository orderRepository, ProductRepository productRepository,
+                        UserService userService) {
+        this(orderRepository, productRepository, userService, null);
+    }
+
+    @Autowired
+    public OrderService(OrderRepository orderRepository, ProductRepository productRepository,
+                        UserService userService, OrderStatusHistoryService historyService) {
+        this.orderRepository = orderRepository;
+        this.productRepository = productRepository;
+        this.userService = userService;
+        this.historyService = historyService;
+    }
 
     /**
      * Places an order for the authenticated user. Products are locked with a
@@ -49,7 +66,7 @@ public class OrderService {
      */
     @Transactional
     public Order createPendingOrder(Address address, List<Long> productIds,
-                                    List<Integer> quantities) {
+                                     List<Integer> quantities) {
         if (productIds == null || quantities == null || productIds.isEmpty() || quantities.isEmpty()) {
             throw new BadRequestException("productIds and quantities must not be empty");
         }
@@ -105,7 +122,9 @@ public class OrderService {
         order.setShippingFee(shippingFee);
         order.setTotalAmount(subtotal.add(tax).add(shippingFee).setScale(2, RoundingMode.HALF_UP));
         order.setStatus(Order.OrderStatus.PENDING);
-        return orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+        recordStatus(saved, Order.OrderStatus.PENDING, "Order placed");
+        return saved;
     }
 
     /** Restores reserved stock, e.g. when a Razorpay payment fails. */
@@ -152,19 +171,64 @@ public class OrderService {
     public Order getOrderByIdForCurrentUser(Long orderId) {
         Order order = getOrderById(orderId);
         User current = userService.getCurrentUser();
-        boolean owner = order.getUser() != null
-                && order.getUser().getId() != null
-                && order.getUser().getId().equals(current.getId());
+        boolean owner = isOwner(order, current);
         if (current.getRole() != User.Role.ADMIN && !owner) {
             throw new AccessDeniedException("You are not allowed to view this order");
         }
         return order;
     }
 
+    /** Owner-or-admin access, reused by the order history endpoint. */
+    @Transactional(readOnly = true)
+    public List<OrderStatusHistory> getHistory(Long orderId) {
+        getOrderByIdForCurrentUser(orderId);
+        if (historyService == null) {
+            return List.of();
+        }
+        return historyService.getHistory(orderId);
+    }
+
+    /**
+     * Cancellation is restricted to the order owner and only valid before the
+     * order has shipped. Reserved stock is released and a history entry is added.
+     */
+    @Transactional
+    public Order cancelOrder(Long orderId) {
+        Order order = getOrderById(orderId);
+        User current = userService.getCurrentUser();
+        if (!isOwner(order, current)) {
+            throw new AccessDeniedException("Only the order owner can cancel this order");
+        }
+        Order.OrderStatus status = order.getStatus();
+        if (status != Order.OrderStatus.PENDING && status != Order.OrderStatus.CONFIRMED) {
+            throw new ConflictException("Order cannot be cancelled in status " + status);
+        }
+        restoreStock(order);
+        order.setStatus(Order.OrderStatus.CANCELLED);
+        Order saved = orderRepository.save(order);
+        recordStatus(saved != null ? saved : order,
+                Order.OrderStatus.CANCELLED, "Cancelled by customer");
+        return saved != null ? saved : order;
+    }
+
+    private static boolean isOwner(Order order, User user) {
+        return order.getUser() != null
+                && order.getUser().getId() != null
+                && order.getUser().getId().equals(user.getId());
+    }
+
+    private void recordStatus(Order order, Order.OrderStatus status, String note) {
+        if (historyService != null) {
+            historyService.record(order, status, note);
+        }
+    }
+
     public Order updateStatus(Long orderId, Order.OrderStatus status) {
         Order order = getOrderById(orderId);
         order.setStatus(status);
-        return orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+        recordStatus(saved, status, "Status updated by admin");
+        return saved;
     }
 
     public List<Order> getAllOrders() {

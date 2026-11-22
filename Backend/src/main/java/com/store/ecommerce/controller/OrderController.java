@@ -2,6 +2,7 @@ package com.store.ecommerce.controller;
 
 import com.store.ecommerce.dto.DtoMapper;
 import com.store.ecommerce.dto.OrderDto;
+import com.store.ecommerce.dto.OrderStatusHistoryDto;
 import com.store.ecommerce.dto.PlaceOrderRequest;
 import com.store.ecommerce.model.Order;
 import com.store.ecommerce.service.OrderService;
@@ -48,6 +49,20 @@ public class OrderController {
     public ResponseEntity<OrderDto> getOrderById(@PathVariable Long orderId) {
         return ResponseEntity.ok(
                 DtoMapper.toOrderDto(orderService.getOrderByIdForCurrentUser(orderId)));
+    }
+
+    /** Owner-or-admin only; access is enforced by the service's existing check. */
+    @GetMapping("/{orderId}/history")
+    public List<OrderStatusHistoryDto> getOrderHistory(@PathVariable Long orderId) {
+        return orderService.getHistory(orderId).stream()
+                .map(DtoMapper::toOrderStatusHistoryDto)
+                .toList();
+    }
+
+    /** Cancellation is intentionally limited to the order owner. */
+    @PostMapping("/{orderId}/cancel")
+    public ResponseEntity<OrderDto> cancelOrder(@PathVariable Long orderId) {
+        return ResponseEntity.ok(DtoMapper.toOrderDto(orderService.cancelOrder(orderId)));
     }
 
     @GetMapping

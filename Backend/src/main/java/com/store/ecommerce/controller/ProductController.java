@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -28,7 +29,9 @@ public class ProductController {
     }
 
     /**
-     * Paginated listing. Example: /api/products/paged?page=0&size=12&sort=name,asc&keyword=shoe&category=footwear
+     * Paginated listing with optional filters. Example:
+     * /api/products/paged?page=0&size=12&sort=name,asc&keyword=shoe&category=footwear
+     * &minPrice=100&maxPrice=500&brand=Nike&minRating=4
      */
     @GetMapping("/paged")
     public PagedResponse<ProductDto> getPagedProducts(
@@ -36,9 +39,30 @@ public class ProductController {
             @RequestParam(defaultValue = "12") int size,
             @RequestParam(defaultValue = "name,asc") String sort,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String category) {
-        return productService.getProductsPaged(page, size, sort, keyword, category)
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) List<String> brand,
+            @RequestParam(required = false) Double minRating) {
+        return productService.getProductsPaged(page, size, sort, keyword, category,
+                minPrice, maxPrice, brand, minRating)
                 .map(DtoMapper::toProductDto);
+    }
+
+    /** Distinct, non-null brands for the filter UI. */
+    @GetMapping("/brands")
+    public List<String> getBrands() {
+        return productService.getBrands();
+    }
+
+    /** Lightweight, case-insensitive name suggestions for the search box. */
+    @GetMapping("/suggest")
+    public List<ProductDto> getSuggestions(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "8") int limit) {
+        return productService.getSuggestions(q, limit).stream()
+                .map(DtoMapper::toProductDto)
+                .toList();
     }
 
     @GetMapping("/{id}")

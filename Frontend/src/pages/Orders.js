@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { orderAPI } from '../services/api';
+import { FaChevronDown, FaChevronUp, FaTimes } from 'react-icons/fa';
 
 const statusColors = {
   PENDING: { bg: '#fff8e1', color: '#f57f17' },
@@ -22,10 +23,33 @@ const statuses = [
   'PAYMENT_FAILED',
 ];
 
+const formatTimelineDate = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
+const statusLabel = (value) =>
+  String(value || '')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('mine'); // 'mine' | 'all' (admin only)
+  const [expanded, setExpanded] = useState({});
+  const [history, setHistory] = useState({});
+  const [historyLoading, setHistoryLoading] = useState({});
+  const [cancelling, setCancelling] = useState(null);
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -66,6 +90,48 @@ const Orders = () => {
       showToast(`Order #${orderId} marked ${status}`, 'success');
     } catch (err) {
       showToast(err.response?.data?.error || 'Could not update status', 'error');
+    }
+  };
+
+  // Load the tracking timeline the first time an order is expanded.
+  const toggleTracking = async (orderId) => {
+    const willOpen = !expanded[orderId];
+    setExpanded((prev) => ({ ...prev, [orderId]: willOpen }));
+    if (!willOpen || history[orderId]) return;
+
+    setHistoryLoading((prev) => ({ ...prev, [orderId]: true }));
+    try {
+      const res = await orderAPI.history(orderId);
+      setHistory((prev) => ({
+        ...prev,
+        [orderId]: Array.isArray(res.data) ? res.data : [],
+      }));
+    } catch (err) {
+      showToast('Could not load tracking details', 'error');
+      setHistory((prev) => ({ ...prev, [orderId]: [] }));
+    } finally {
+      setHistoryLoading((prev) => ({ ...prev, [orderId]: false }));
+    }
+  };
+
+  const handleCancel = async (order) => {
+    if (!window.confirm(`Cancel order #${order.id}?`)) return;
+    setCancelling(order.id);
+    try {
+      const res = await orderAPI.cancel(order.id);
+      const updated = res.data || {};
+      setOrders((prev) =>
+        prev.map((item) =>
+          item.id === order.id
+            ? { ...item, ...updated, status: updated.status || 'CANCELLED' }
+            : item
+        )
+      );
+      showToast(`Order #${order.id} cancelled`, 'success');
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Could not cancel order', 'error');
+    } finally {
+      setCancelling(null);
     }
   };
 
@@ -210,14 +276,86 @@ const Orders = () => {
             </div>
           </div>
 
+          {/* ---------- Tracking timeline ---------- */}
+          {expanded[order.id] && (
+            <div style={styles.trackingPanel} className="orders-tracking">
+              {historyLoading[order.id] ? (
+                <p style={styles.trackingEmpty}>Loading tracking details...</p>
+              ) : (history[order.id] || []).length === 0 ? (
+                <p style={styles.trackingEmpty}>No tracking updates yet.</p>
+              ) : (
+                <div style={styles.timeline}>
+                  {(history[order.id] || []).map((entry, index) => {
+                    const entries = history[order.id];
+                    const currentIndex = entries.findIndex(
+                      (item) => item.status === order.status
+                    );
+                    const isCurrent =
+                      index === (currentIndex >= 0 ? currentIndex : entries.length - 1);
+                    return (
+                      <div key={entry.id || index} style={styles.timelineItem}>
+                        <span
+                          style={{
+                            ...styles.timelineDot,
+                            ...(isCurrent ? styles.timelineDotCurrent : {}),
+                          }}
+                        />
+                        <div style={styles.timelineBody}>
+                          <span
+                            style={{
+                              ...styles.timelineStatus,
+                              ...(isCurrent ? styles.timelineCurrent : {}),
+                            }}
+                          >
+                            {statusLabel(entry.status)}
+                            {isCurrent && <span style={styles.currentTag}>Current</span>}
+                          </span>
+                          {entry.note && (
+                            <span style={styles.timelineNote}>{entry.note}</span>
+                          )}
+                          <span style={styles.timelineDate}>
+                            {formatTimelineDate(entry.changedAt)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={styles.footer}>
-            <Link
-              to={`/orders/${order.id}/invoice`}
-              style={styles.invoiceLink}
-              className="orders-invoice-link"
-            >
-              View Invoice
-            </Link>
+            <div style={styles.footerActions}>
+              <button
+                type="button"
+                style={styles.trackBtn}
+                onClick={() => toggleTracking(order.id)}
+                aria-expanded={Boolean(expanded[order.id])}
+              >
+                {expanded[order.id] ? <FaChevronUp /> : <FaChevronDown />}
+                {expanded[order.id] ? ' Hide tracking' : ' Track order'}
+              </button>
+              {!isAdmin &&
+                (order.status === 'PENDING' || order.status === 'CONFIRMED') && (
+                  <button
+                    type="button"
+                    style={styles.cancelBtn}
+                    disabled={cancelling === order.id}
+                    onClick={() => handleCancel(order)}
+                  >
+                    <FaTimes />
+                    {cancelling === order.id ? ' Cancelling...' : ' Cancel order'}
+                  </button>
+                )}
+              <Link
+                to={`/orders/${order.id}/invoice`}
+                style={styles.invoiceLink}
+                className="orders-invoice-link"
+              >
+                View Invoice
+              </Link>
+            </div>
             <span style={styles.total}>
               Total: ₹{(order.totalAmount || 0).toLocaleString('en-IN')}
             </span>
@@ -325,6 +463,74 @@ const styles = {
     fontSize: 12,
     color: '#555',
     lineHeight: 1.7,
+  },
+  trackingPanel: {
+    padding: '16px 20px',
+    borderTop: '1px solid #f0f0f0',
+    background: '#fafafa',
+  },
+  trackingEmpty: { fontSize: 13, color: '#878787', textAlign: 'center', padding: 12 },
+  timeline: { display: 'flex', flexDirection: 'column' },
+  timelineItem: { display: 'flex', gap: 12, minHeight: 52 },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: '50%',
+    background: '#fff',
+    border: '2px solid #cfd8dc',
+    marginTop: 3,
+    flexShrink: 0,
+    zIndex: 1,
+  },
+  timelineDotCurrent: {
+    background: '#ff9f00',
+    border: '2px solid #2874f0',
+    boxShadow: '0 0 0 3px rgba(40,116,240,0.15)',
+  },
+  timelineBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+    paddingBottom: 14,
+    marginLeft: -19,
+    borderLeft: '2px solid #e0e0e0',
+    paddingLeft: 26,
+    flex: 1,
+  },
+  timelineStatus: { fontSize: 14, fontWeight: 600, color: '#555' },
+  timelineCurrent: { color: '#2874f0' },
+  currentTag: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: '#2874f0',
+    background: '#e3f2fd',
+    borderRadius: 10,
+    padding: '2px 7px',
+    marginLeft: 8,
+    verticalAlign: 'middle',
+  },
+  timelineNote: { fontSize: 13, color: '#444', lineHeight: 1.5 },
+  timelineDate: { fontSize: 11, color: '#878787' },
+  footerActions: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+  trackBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    background: 'white',
+    color: '#2874f0',
+    border: '1px solid #2874f0',
+    padding: '7px 12px',
+    fontSize: 13,
+    fontWeight: 600,
+  },
+  cancelBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    background: 'white',
+    color: '#c62828',
+    border: '1px solid #ffcdd2',
+    padding: '7px 12px',
+    fontSize: 13,
+    fontWeight: 600,
   },
   footer: {
     padding: '12px 20px',

@@ -73,6 +73,15 @@ public class DtoMapper {
         return dto;
     }
 
+    public static OrderStatusHistoryDto toOrderStatusHistoryDto(OrderStatusHistory history) {
+        OrderStatusHistoryDto dto = new OrderStatusHistoryDto();
+        dto.setId(history.getId());
+        dto.setStatus(history.getStatus().name());
+        dto.setNote(history.getNote());
+        dto.setChangedAt(history.getChangedAt());
+        return dto;
+    }
+
     public static AddressDto toAddressDto(Address address) {
         AddressDto dto = new AddressDto();
         dto.setId(address.getId());

@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useWishlist } from '../context/WishlistContext';
 import {
   FaShoppingCart,
+  FaHeart,
   FaUser,
   FaStore,
   FaBars,
@@ -14,6 +16,7 @@ import {
 const Navbar = () => {
   const { user, logout } = useAuth();
   const { itemCount } = useCart();
+  const { count: wishlistCount } = useWishlist();
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -60,6 +63,16 @@ const Navbar = () => {
                 onClick={() => setMenuOpen(false)}
               >
                 My Orders
+              </Link>
+              <Link
+                to="/wishlist"
+                className="nav-link"
+                onClick={() => setMenuOpen(false)}
+              >
+                <FaHeart /> Wishlist
+                {wishlistCount > 0 && (
+                  <span className="cart-badge wishlist-badge">{wishlistCount}</span>
+                )}
               </Link>
               <Link
                 to="/cart"

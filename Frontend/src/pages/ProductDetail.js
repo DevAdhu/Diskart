@@ -3,13 +3,17 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { productAPI, reviewAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
+import { useRecentlyViewed } from '../hooks/useRecentlyViewed';
 import {
   FaShoppingCart,
   FaArrowLeft,
   FaStar,
   FaRegStar,
   FaTrash,
+  FaHeart,
+  FaRegHeart,
 } from 'react-icons/fa';
 
 const emptyReviews = { averageRating: 0, totalReviews: 0, reviews: [] };
@@ -69,19 +73,32 @@ const ProductDetail = () => {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [recommendations, setRecommendations] = useState([]);
   const navigate = useNavigate();
   const { addItem } = useCart();
+  const { isWishlisted, toggleWishlist } = useWishlist();
   const { showToast } = useToast();
   const { user } = useAuth();
+  const { addRecentlyViewed } = useRecentlyViewed();
 
   const loadProduct = async () => {
     try {
       const res = await productAPI.getById(id);
       setProduct(res.data);
+      addRecentlyViewed(id);
     } catch (err) {
       console.error(err);
     }
     setLoading(false);
+  };
+
+  const loadRecommendations = async () => {
+    try {
+      const res = await productAPI.recommendations(id, 6);
+      setRecommendations(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      setRecommendations([]);
+    }
   };
 
   const loadReviews = async () => {
@@ -98,10 +115,12 @@ const ProductDetail = () => {
     setLoading(true);
     setProduct(null);
     setReviewData(emptyReviews);
+    setRecommendations([]);
     setQty(1);
     setActiveImg(0);
     loadProduct();
     loadReviews();
+    loadRecommendations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -276,7 +295,7 @@ const ProductDetail = () => {
               +
             </button>
           </div>
-          <div style={styles.btnRow}>
+          <div style={styles.btnRow} className="product-detail-actions">
             <button
               style={{
                 ...styles.cartBtn,
@@ -297,6 +316,29 @@ const ProductDetail = () => {
               onClick={addToCart}
             >
               Buy Now
+            </button>
+            <button
+              type="button"
+              style={{
+                ...styles.wishBtn,
+                ...(isWishlisted(product.id) ? styles.wishBtnActive : {}),
+              }}
+              aria-label={
+                isWishlisted(product.id)
+                  ? 'Remove from wishlist'
+                  : 'Add to wishlist'
+              }
+              title={isWishlisted(product.id) ? 'Remove from wishlist' : 'Add to wishlist'}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleWishlist(product);
+              }}
+            >
+              {isWishlisted(product.id) ? (
+                <FaHeart size={18} color="#ff6161" />
+              ) : (
+                <FaRegHeart size={18} color="#878787" />
+              )}
             </button>
           </div>
 
@@ -321,6 +363,45 @@ const ProductDetail = () => {
           )}
         </div>
       </div>
+
+      {/* ---------- Recommendations ---------- */}
+      {recommendations.length > 0 && (
+        <section style={styles.recommendCard} className="recommend-card">
+          <h2 style={styles.recommendTitle}>Customers also bought</h2>
+          <div style={styles.recommendGrid}>
+            {recommendations.map((item) => (
+              <div
+                key={item.id}
+                style={styles.recommendCardItem}
+                onClick={() => navigate(`/product/${item.id}`)}
+              >
+                <div style={styles.recommendImgBox}>
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      style={styles.recommendImg}
+                      onError={(e) => (e.target.style.display = 'none')}
+                    />
+                  ) : (
+                    <div style={styles.noImg}>No Image</div>
+                  )}
+                </div>
+                <span style={styles.recommendName}>{item.name}</span>
+                <span style={styles.recommendPrice}>
+                  ₹{Number(item.price || 0).toLocaleString('en-IN')}
+                </span>
+                {item.averageRating > 0 && (
+                  <span style={styles.recommendRating}>
+                    <FaStar size={11} color="#ff9f00" />{' '}
+                    {Number(item.averageRating).toFixed(1)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ---------- Reviews ---------- */}
       <section style={styles.reviewsCard} className="reviews-card">
@@ -553,6 +634,59 @@ const styles = {
     cursor: 'pointer',
   },
   disabled: { background: '#ccc', cursor: 'not-allowed' },
+  wishBtn: {
+    flex: '0 0 auto',
+    minWidth: 52,
+    background: 'white',
+    color: '#212121',
+    border: '1px solid #ddd',
+    borderRadius: 4,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wishBtnActive: { background: '#fff0f0', border: '1px solid #ffcdd2' },
+  recommendCard: {
+    background: 'white',
+    borderRadius: 4,
+    padding: 24,
+    marginTop: 16,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+  },
+  recommendTitle: { fontSize: 20, fontWeight: 600, marginBottom: 16 },
+  recommendGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+    gap: 12,
+  },
+  recommendCardItem: {
+    border: '1px solid #f0f0f0',
+    borderRadius: 4,
+    padding: 10,
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  recommendImgBox: {
+    height: 110,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#f9f9f9',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  recommendImg: { width: '100%', height: 110, objectFit: 'contain' },
+  recommendName: {
+    fontSize: 13,
+    fontWeight: 500,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  recommendPrice: { fontSize: 13, fontWeight: 700, marginTop: 2 },
+  recommendRating: { fontSize: 11, color: '#878787', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 },
   detailsBox: {
     marginTop: 28,
     borderTop: '1px solid #f0f0f0',

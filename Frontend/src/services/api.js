@@ -47,22 +47,48 @@ export const authAPI = {
   register: (data) => API.post('/auth/register', data),
 };
 
+const hasValue = (value) => value !== '' && value !== null && value !== undefined;
+
 export const productAPI = {
   getAll: () => API.get('/products'),
   getById: (id) => API.get(`/products/${id}`),
   // Paged / sorted / filtered catalogue used by Home.
-  getPaged: ({ page = 0, size = 12, sort = 'name,asc', keyword = '', category = '' } = {}) =>
+  // `brand` is sent as a comma-separated list so a single query parameter can
+  // carry every selected brand checkbox (Spring binds it to a List<String>).
+  getPaged: ({
+    page = 0,
+    size = 12,
+    sort = 'name,asc',
+    keyword = '',
+    category = '',
+    minPrice = '',
+    maxPrice = '',
+    brand = '',
+    minRating = '',
+  } = {}) =>
     API.get('/products/paged', {
       params: {
         page,
         size,
         sort,
-        ...(keyword ? { keyword } : {}),
-        ...(category ? { category } : {}),
+        ...(hasValue(keyword) ? { keyword } : {}),
+        ...(hasValue(category) ? { category } : {}),
+        ...(hasValue(minPrice) ? { minPrice } : {}),
+        ...(hasValue(maxPrice) ? { maxPrice } : {}),
+        ...(hasValue(brand) ? { brand } : {}),
+        ...(hasValue(minRating) ? { minRating } : {}),
       },
     }),
   search: (keyword) => API.get('/products/search', { params: { keyword } }),
   getByCategory: (cat) => API.get(`/products/category/${encodeURIComponent(cat)}`),
+  // Distinct brand names used by the Home filter sidebar.
+  brands: () => API.get('/products/brands'),
+  // Type-ahead suggestions for the Home search box.
+  suggest: (q, limit = 8) =>
+    API.get('/products/suggest', { params: { q, limit } }),
+  // "Customers also bought" strip on the product detail page.
+  recommendations: (id, limit = 6) =>
+    API.get(`/products/${id}/recommendations`, { params: { limit } }),
   create: (data) => API.post('/products', data),
   update: (id, data) => API.put(`/products/${id}`, data),
   delete: (id) => API.delete(`/products/${id}`),
@@ -80,6 +106,18 @@ export const orderAPI = {
   getById: (id) => API.get(`/orders/${id}`),
   updateStatus: (orderId, status) =>
     API.patch(`/orders/${orderId}/status`, null, { params: { status } }),
+  // Customer-facing tracking timeline for a single order.
+  history: (id) => API.get(`/orders/${id}/history`),
+  // Customer-initiated cancellation (PENDING/CONFIRMED only on the backend).
+  cancel: (id) => API.post(`/orders/${id}/cancel`),
+};
+
+// Wishlist is shared client-side. Logged-in users get the server list; guests
+// keep a local-only copy (see WishlistContext) so the heart still works.
+export const wishlistAPI = {
+  list: () => API.get('/wishlist'),
+  add: (productId) => API.post(`/wishlist/${productId}`),
+  remove: (productId) => API.delete(`/wishlist/${productId}`),
 };
 
 // Saved shipping addresses for the logged-in user.

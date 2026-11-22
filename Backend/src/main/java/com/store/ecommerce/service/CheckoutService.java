@@ -13,7 +13,7 @@ import com.store.ecommerce.model.Order;
 import com.store.ecommerce.model.Payment;
 import com.store.ecommerce.repository.OrderRepository;
 import com.store.ecommerce.repository.PaymentRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +22,6 @@ import java.math.RoundingMode;
 
 /** Orchestrates the three Razorpay checkout steps. */
 @Service
-@RequiredArgsConstructor
 public class CheckoutService {
 
     private static final BigDecimal PAISE_PER_RUPEE = new BigDecimal("100");
@@ -32,6 +31,28 @@ public class CheckoutService {
     private final RazorpayService razorpayService;
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
+    private final OrderStatusHistoryService historyService;
+
+    /** Kept for callers that do not participate in status-history recording. */
+    public CheckoutService(OrderService orderService, AddressService addressService,
+                           RazorpayService razorpayService, PaymentRepository paymentRepository,
+                           OrderRepository orderRepository) {
+        this(orderService, addressService, razorpayService, paymentRepository,
+                orderRepository, null);
+    }
+
+    @Autowired
+    public CheckoutService(OrderService orderService, AddressService addressService,
+                           RazorpayService razorpayService, PaymentRepository paymentRepository,
+                           OrderRepository orderRepository,
+                           OrderStatusHistoryService historyService) {
+        this.orderService = orderService;
+        this.addressService = addressService;
+        this.razorpayService = razorpayService;
+        this.paymentRepository = paymentRepository;
+        this.orderRepository = orderRepository;
+        this.historyService = historyService;
+    }
 
     /** Step 1: validate the address, reserve stock and create a Razorpay order. */
     @Transactional
@@ -100,7 +121,8 @@ public class CheckoutService {
         paymentRepository.save(payment);
 
         order.setStatus(Order.OrderStatus.CONFIRMED);
-        orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+        recordStatus(saved != null ? saved : order, Order.OrderStatus.CONFIRMED, "Payment verified");
         return DtoMapper.toOrderDto(order);
     }
 
@@ -123,8 +145,17 @@ public class CheckoutService {
         if (order.getStatus() != Order.OrderStatus.PAYMENT_FAILED) {
             orderService.restoreStock(order);
             order.setStatus(Order.OrderStatus.PAYMENT_FAILED);
-            orderRepository.save(order);
+            Order saved = orderRepository.save(order);
+            recordStatus(saved != null ? saved : order,
+                    Order.OrderStatus.PAYMENT_FAILED, "Payment failed");
+            return DtoMapper.toOrderDto(order);
         }
         return DtoMapper.toOrderDto(order);
+    }
+
+    private void recordStatus(Order order, Order.OrderStatus status, String note) {
+        if (historyService != null) {
+            historyService.record(order, status, note);
+        }
     }
 }
