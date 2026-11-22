@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { orderAPI } from '../services/api';
@@ -10,9 +10,17 @@ const statusColors = {
   SHIPPED: { bg: '#f3e5f5', color: '#6a1b9a' },
   DELIVERED: { bg: '#e8f5e9', color: '#2e7d32' },
   CANCELLED: { bg: '#ffebee', color: '#c62828' },
+  PAYMENT_FAILED: { bg: '#fce4ec', color: '#ad1457' },
 };
 
-const statuses = ['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
+const statuses = [
+  'PENDING',
+  'CONFIRMED',
+  'SHIPPED',
+  'DELIVERED',
+  'CANCELLED',
+  'PAYMENT_FAILED',
+];
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
@@ -163,9 +171,55 @@ const Orders = () => {
             ))}
           </div>
 
+          <div style={styles.details} className="orders-details">
+            <div style={styles.detailCol}>
+              <span style={styles.detailLabel}>DELIVERY ADDRESS</span>
+              <span style={styles.detailValue}>
+                {order.recipientName || order.customerName || '—'}
+              </span>
+              <span style={styles.detailValue}>
+                {[order.addressLine1, order.addressLine2].filter(Boolean).join(', ')}
+              </span>
+              <span style={styles.detailValue}>
+                {[order.city, order.state].filter(Boolean).join(', ')}
+                {order.postalCode ? ` - ${order.postalCode}` : ''}
+              </span>
+              <span style={styles.detailValue}>{order.country}</span>
+              {order.phone && (
+                <span style={styles.detailValue}>Phone: {order.phone}</span>
+              )}
+            </div>
+            <div style={styles.detailCol}>
+              <span style={styles.detailLabel}>BILLING BREAKDOWN</span>
+              <span style={styles.billRow}>
+                <span>Subtotal</span>
+                <span>₹{(order.subtotal || 0).toLocaleString('en-IN')}</span>
+              </span>
+              <span style={styles.billRow}>
+                <span>GST (18%)</span>
+                <span>₹{(order.tax || 0).toLocaleString('en-IN')}</span>
+              </span>
+              <span style={styles.billRow}>
+                <span>Shipping</span>
+                <span>
+                  {order.shippingFee
+                    ? `₹${order.shippingFee.toLocaleString('en-IN')}`
+                    : 'FREE'}
+                </span>
+              </span>
+            </div>
+          </div>
+
           <div style={styles.footer}>
+            <Link
+              to={`/orders/${order.id}/invoice`}
+              style={styles.invoiceLink}
+              className="orders-invoice-link"
+            >
+              View Invoice
+            </Link>
             <span style={styles.total}>
-              Total: ₹{order.totalAmount?.toLocaleString('en-IN')}
+              Total: ₹{(order.totalAmount || 0).toLocaleString('en-IN')}
             </span>
           </div>
         </div>
@@ -247,12 +301,41 @@ const styles = {
   itemName: { flex: 1, fontWeight: 500 },
   itemQty: { color: '#878787', margin: '0 20px' },
   itemPrice: { fontWeight: 600 },
+  details: {
+    display: 'flex',
+    gap: 24,
+    flexWrap: 'wrap',
+    padding: '12px 20px',
+    background: '#fafafa',
+    borderTop: '1px solid #f0f0f0',
+  },
+  detailCol: { display: 'flex', flexDirection: 'column', flex: 1, minWidth: 220, gap: 2 },
+  detailLabel: {
+    fontSize: 11,
+    color: '#878787',
+    letterSpacing: 0.7,
+    fontWeight: 600,
+    marginBottom: 4,
+  },
+  detailValue: { fontSize: 12, color: '#555', lineHeight: 1.5 },
+  billRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 12,
+    fontSize: 12,
+    color: '#555',
+    lineHeight: 1.7,
+  },
   footer: {
     padding: '12px 20px',
     borderTop: '1px solid #f0f0f0',
     display: 'flex',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
   },
+  invoiceLink: { color: '#2874f0', fontSize: 13, fontWeight: 600, textDecoration: 'none' },
   total: { fontSize: 16, fontWeight: 700, color: '#212121' },
   loading: { textAlign: 'center', padding: 60, color: '#666' },
   empty: { textAlign: 'center', padding: 80 },

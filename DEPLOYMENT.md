@@ -28,6 +28,8 @@ The repository is a monorepo (`Backend/` + `Frontend/`), so the backend service 
 | `APP_SEED_ENABLED` | `false` |
 | `CORS_ALLOWED_ORIGINS` | Your real Vercel domain, e.g. `https://diskart.vercel.app` |
 | `SPRING_PROFILES_ACTIVE` | `prod` |
+| `RAZORPAY_KEY_ID` | Your Razorpay key id (`rzp_live_...` in production, `rzp_test_...` for testing) |
+| `RAZORPAY_KEY_SECRET` | The matching Razorpay key secret — store it as a Railway secret variable |
 
    The `${{MySQL.*}}` references are Railway's syntax for referencing another service's variables — they stay in sync automatically.
 
@@ -55,6 +57,13 @@ With `prod` + `APP_SEED_ENABLED=false`, no admin exists. To create one:
 - Log in as the admin you seeded and check the **Admin** nav link, product management and order status controls.
 - Optional: to view the Railway MySQL data in Workbench, open the MySQL service → **Settings → Networking → Public Access**, then connect using the `MYSQL_PUBLIC_URL` value.
 
+### Razorpay setup
+
+1. Create a Razorpay account and get the **Test** key id/secret from *Settings → API Keys*.
+2. Put them in `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` on the backend service and redeploy.
+3. Test a full purchase with Razorpay's test card. The backend verifies the payment signature server-side with HMAC-SHA256; no webhook needs to be configured.
+4. When ready for real money, switch to **Live** keys. The app also supports a simulated-payment fallback when the key id is the placeholder `rzp_test_your_key_id`, so local development works without an account.
+
 ## Generic backend notes (Spring Boot)
 
 Deploy the `Backend/` folder as a Java 17+ / Maven service (Render, Railway, Fly.io, AWS Elastic Beanstalk, etc.).
@@ -68,6 +77,7 @@ Set these environment variables in the hosting platform:
 | `SPRING_DATASOURCE_PASSWORD` | Production DB password |
 | `APP_JWT_SECRET` | A fresh random secret, 32+ characters |
 | `APP_SEED_ENABLED` | `false` |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Keys from your Razorpay dashboard (test or live) |
 | `CORS_ALLOWED_ORIGINS` | `https://diskart.vercel.app` (plus any other frontend domains, comma-separated) |
 | `PORT` | The port your platform injects (defaults to 8080) |
 

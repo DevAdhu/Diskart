@@ -63,6 +63,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                        // Reviews are readable by anyone, but writing/deleting them
+                        // only requires a login (not ADMIN) and is enforced in the service.
+                        .requestMatchers(HttpMethod.POST, "/api/products/*/reviews").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/products/*/reviews/*").authenticated()
                         .requestMatchers("/api/products/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions

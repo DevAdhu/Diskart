@@ -2,7 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { FaShoppingCart, FaUser, FaStore, FaBars, FaTimes } from 'react-icons/fa';
+import {
+  FaShoppingCart,
+  FaUser,
+  FaStore,
+  FaBars,
+  FaTimes,
+  FaMapMarkerAlt,
+} from 'react-icons/fa';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -73,6 +80,13 @@ const Navbar = () => {
                   Admin
                 </Link>
               )}
+              <Link
+                to="/addresses"
+                className="nav-link"
+                onClick={() => setMenuOpen(false)}
+              >
+                <FaMapMarkerAlt /> Addresses
+              </Link>
               <span className="nav-user">
                 <FaUser /> {user.name}
               </span>

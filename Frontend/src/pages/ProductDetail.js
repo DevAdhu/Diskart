@@ -1,9 +1,63 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { productAPI } from '../services/api';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { productAPI, reviewAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
-import { FaShoppingCart, FaArrowLeft } from 'react-icons/fa';
+import {
+  FaShoppingCart,
+  FaArrowLeft,
+  FaStar,
+  FaRegStar,
+  FaTrash,
+} from 'react-icons/fa';
+
+const emptyReviews = { averageRating: 0, totalReviews: 0, reviews: [] };
+
+const RatingStars = ({ value, size = 14 }) => (
+  <span style={styles.stars} aria-label={`${value} out of 5 stars`}>
+    {[1, 2, 3, 4, 5].map((star) =>
+      star <= Math.round(value || 0) ? (
+        <FaStar key={star} size={size} color="#ff9f00" />
+      ) : (
+        <FaRegStar key={star} size={size} color="#d0d0d0" />
+      )
+    )}
+  </span>
+);
+
+const formatDate = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? String(value)
+    : date.toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+};
+
+const renderSpecifications = (specs) => {
+  if (!specs) return null;
+  if (Array.isArray(specs)) {
+    return specs.map((spec, i) => (
+      <div key={i} style={styles.specRow}>
+        <span style={styles.specKey}>Specification {i + 1}</span>
+        <span style={styles.specValue}>{String(spec)}</span>
+      </div>
+    ));
+  }
+  if (typeof specs === 'object') {
+    return Object.entries(specs).map(([key, value]) => (
+      <div key={key} style={styles.specRow}>
+        <span style={styles.specKey}>{key}</span>
+        <span style={styles.specValue}>{String(value)}</span>
+      </div>
+    ));
+  }
+  return <p style={styles.specValue}>{String(specs)}</p>;
+};
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -11,13 +65,14 @@ const ProductDetail = () => {
   const [loading, setLoading] = useState(true);
   const [qty, setQty] = useState(1);
   const [activeImg, setActiveImg] = useState(0);
+  const [reviewData, setReviewData] = useState(emptyReviews);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
   const navigate = useNavigate();
   const { addItem } = useCart();
   const { showToast } = useToast();
-
-  useEffect(() => {
-    loadProduct();
-  }, [id]); // eslint-disable-line
+  const { user } = useAuth();
 
   const loadProduct = async () => {
     try {
@@ -29,10 +84,75 @@ const ProductDetail = () => {
     setLoading(false);
   };
 
+  const loadReviews = async () => {
+    try {
+      const res = await reviewAPI.list(id);
+      setReviewData(res.data || emptyReviews);
+    } catch (err) {
+      console.error(err);
+      setReviewData(emptyReviews);
+    }
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    setProduct(null);
+    setReviewData(emptyReviews);
+    setQty(1);
+    setActiveImg(0);
+    loadProduct();
+    loadReviews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
   const addToCart = () => {
     addItem(product, qty);
     showToast(`${product.name} added to cart!`, 'success');
     navigate('/cart');
+  };
+
+  const isOwnReview = (review) => {
+    if (!user) return false;
+    if (review.userId && user.id && review.userId === user.id) return true;
+    return (
+      Boolean(review.userName && user.name) &&
+      String(review.userName).trim().toLowerCase() === String(user.name).trim().toLowerCase()
+    );
+  };
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (!comment.trim()) {
+      showToast('Please write a comment', 'error');
+      return;
+    }
+    setSubmittingReview(true);
+    try {
+      await reviewAPI.add(id, { rating, comment: comment.trim() });
+      setComment('');
+      setRating(5);
+      showToast('Thanks for your review!', 'success');
+      await Promise.all([loadReviews(), loadProduct()]);
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Could not submit review', 'error');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  const handleDeleteReview = async (review) => {
+    if (!window.confirm('Delete your review?')) return;
+    try {
+      await reviewAPI.remove(id, review.id);
+      showToast('Review deleted', 'success');
+      await Promise.all([loadReviews(), loadProduct()]);
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Could not delete review', 'error');
+    }
   };
 
   if (loading) return <div style={styles.loading}>Loading...</div>;
@@ -44,6 +164,8 @@ const ProductDetail = () => {
       : product.imageUrl
       ? [product.imageUrl]
       : [];
+
+  const specs = renderSpecifications(product.specifications);
 
   return (
     <div style={styles.page}>
@@ -106,6 +228,20 @@ const ProductDetail = () => {
         <div style={styles.info}>
           <p style={styles.category}>{product.category}</p>
           <h1 style={styles.name}>{product.name}</h1>
+          {(product.brand || product.averageRating > 0) && (
+            <div style={styles.ratingLine}>
+              {product.brand && <span style={styles.brand}>{product.brand}</span>}
+              {product.averageRating > 0 && (
+                <span style={styles.ratingInline}>
+                  <RatingStars value={product.averageRating} />
+                  <span style={styles.ratingText}>
+                    {Number(product.averageRating).toFixed(1)} (
+                    {product.reviewCount || 0})
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
           <p style={styles.description}>
             {product.description || 'No description available.'}
           </p>
@@ -163,8 +299,120 @@ const ProductDetail = () => {
               Buy Now
             </button>
           </div>
+
+          {/* ---------- Rich product details ---------- */}
+          {(product.brand || product.sku || product.warranty || specs) && (
+            <div style={styles.detailsBox}>
+              <h3 style={styles.detailsTitle}>Product Details</h3>
+              <div style={styles.specRow}>
+                <span style={styles.specKey}>Brand</span>
+                <span style={styles.specValue}>{product.brand || '—'}</span>
+              </div>
+              <div style={styles.specRow}>
+                <span style={styles.specKey}>SKU</span>
+                <span style={styles.specValue}>{product.sku || '—'}</span>
+              </div>
+              <div style={styles.specRow}>
+                <span style={styles.specKey}>Warranty</span>
+                <span style={styles.specValue}>{product.warranty || '—'}</span>
+              </div>
+              {specs && <div style={styles.specsBlock}>{specs}</div>}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ---------- Reviews ---------- */}
+      <section style={styles.reviewsCard} className="reviews-card">
+        <h2 style={styles.reviewsTitle}>Ratings &amp; Reviews</h2>
+        <div style={styles.reviewsSummary}>
+          <div style={styles.averageBlock}>
+            <span style={styles.averageValue}>
+              {Number(reviewData.averageRating || 0).toFixed(1)}
+            </span>
+            <RatingStars value={reviewData.averageRating} size={18} />
+            <span style={styles.reviewCount}>
+              {reviewData.totalReviews || 0}{' '}
+              {(reviewData.totalReviews || 0) === 1 ? 'review' : 'reviews'}
+            </span>
+          </div>
+
+          <form onSubmit={handleSubmitReview} style={styles.reviewForm}>
+            {user ? (
+              <>
+                <span style={styles.formLabel}>Rate this product</span>
+                <div style={styles.ratingPicker}>
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <button
+                      type="button"
+                      key={value}
+                      aria-label={`Rate ${value} stars`}
+                      onClick={() => setRating(value)}
+                      style={styles.starButton}
+                    >
+                      {value <= rating ? (
+                        <FaStar size={24} color="#ff9f00" />
+                      ) : (
+                        <FaRegStar size={24} color="#d0d0d0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Share your experience..."
+                  rows={3}
+                  style={styles.textarea}
+                />
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={submittingReview}
+                >
+                  {submittingReview ? 'Submitting...' : 'Submit Review'}
+                </button>
+              </>
+            ) : (
+              <p style={styles.loginNote}>
+                <Link to="/login" style={styles.link}>
+                  Login
+                </Link>{' '}
+                to write a review.
+              </p>
+            )}
+          </form>
+        </div>
+
+        <div style={styles.reviewList}>
+          {(reviewData.reviews || []).length === 0 ? (
+            <p style={styles.noReviews}>No reviews yet. Be the first to review!</p>
+          ) : (
+            reviewData.reviews.map((review) => (
+              <div key={review.id} style={styles.review} className="review-item">
+                <div style={styles.reviewHead}>
+                  <span style={styles.reviewUser}>{review.userName}</span>
+                  <span style={styles.reviewDate}>{formatDate(review.createdAt)}</span>
+                </div>
+                <div style={styles.reviewRating}>
+                  <RatingStars value={review.rating} />
+                  <span style={styles.ratingText}>{review.rating}/5</span>
+                  {isOwnReview(review) && (
+                    <button
+                      style={styles.deleteReview}
+                      onClick={() => handleDeleteReview(review)}
+                      aria-label="Delete your review"
+                    >
+                      <FaTrash /> Delete
+                    </button>
+                  )}
+                </div>
+                <p style={styles.reviewComment}>{review.comment}</p>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
     </div>
   );
 };
@@ -252,6 +500,11 @@ const styles = {
     letterSpacing: 1,
   },
   name: { fontSize: 24, fontWeight: 500, color: '#212121', marginBottom: 12 },
+  ratingLine: { display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 12 },
+  brand: { fontSize: 13, color: '#2874f0', fontWeight: 600 },
+  ratingInline: { display: 'flex', alignItems: 'center', gap: 6 },
+  stars: { display: 'inline-flex', alignItems: 'center', gap: 2, verticalAlign: 'middle' },
+  ratingText: { fontSize: 12, color: '#878787', marginLeft: 4 },
   description: {
     fontSize: 14,
     color: '#666',
@@ -300,6 +553,75 @@ const styles = {
     cursor: 'pointer',
   },
   disabled: { background: '#ccc', cursor: 'not-allowed' },
+  detailsBox: {
+    marginTop: 28,
+    borderTop: '1px solid #f0f0f0',
+    paddingTop: 20,
+  },
+  detailsTitle: { fontSize: 16, fontWeight: 600, marginBottom: 12 },
+  specsBlock: { marginTop: 12, borderTop: '1px dashed #eee', paddingTop: 12 },
+  specRow: {
+    display: 'flex',
+    gap: 12,
+    justifyContent: 'space-between',
+    fontSize: 13,
+    padding: '5px 0',
+    borderBottom: '1px solid #f9f9f9',
+  },
+  specKey: { color: '#878787', flexShrink: 0, textTransform: 'capitalize' },
+  specValue: { color: '#333', textAlign: 'right', fontWeight: 500 },
+  reviewsCard: {
+    background: 'white',
+    borderRadius: 4,
+    padding: 24,
+    marginTop: 16,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+  },
+  reviewsTitle: { fontSize: 20, fontWeight: 600, marginBottom: 20 },
+  reviewsSummary: {
+    display: 'flex',
+    gap: 32,
+    flexWrap: 'wrap',
+    paddingBottom: 20,
+    borderBottom: '1px solid #f0f0f0',
+  },
+  averageBlock: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 160 },
+  averageValue: { fontSize: 36, fontWeight: 700, color: '#212121', lineHeight: 1 },
+  reviewCount: { fontSize: 12, color: '#878787' },
+  reviewForm: { flex: 1, minWidth: 260 },
+  formLabel: { display: 'block', fontSize: 13, color: '#555', marginBottom: 6 },
+  ratingPicker: { display: 'flex', gap: 4, marginBottom: 10 },
+  starButton: { background: 'none', padding: 2, lineHeight: 1 },
+  textarea: {
+    width: '100%',
+    padding: '10px 12px',
+    border: '1px solid #ddd',
+    borderRadius: 4,
+    fontSize: 14,
+    marginBottom: 10,
+    resize: 'vertical',
+    fontFamily: 'inherit',
+  },
+  loginNote: { fontSize: 14, color: '#666' },
+  link: { color: '#2874f0' },
+  reviewList: { marginTop: 8 },
+  review: { padding: '16px 0', borderBottom: '1px solid #f0f0f0' },
+  reviewHead: { display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
+  reviewUser: { fontSize: 14, fontWeight: 600 },
+  reviewDate: { fontSize: 12, color: '#878787' },
+  reviewRating: { display: 'flex', alignItems: 'center', margin: '6px 0' },
+  deleteReview: {
+    background: 'none',
+    color: '#c62828',
+    fontSize: 12,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    marginLeft: 'auto',
+    padding: 4,
+  },
+  reviewComment: { fontSize: 14, color: '#444', lineHeight: 1.6 },
+  noReviews: { color: '#878787', fontSize: 14, textAlign: 'center', padding: 24 },
   loading: { textAlign: 'center', padding: 80, color: '#666' },
 };
 

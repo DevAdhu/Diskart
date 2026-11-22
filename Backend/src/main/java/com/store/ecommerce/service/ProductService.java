@@ -8,6 +8,7 @@ import com.store.ecommerce.model.Product;
 import com.store.ecommerce.model.ProductImage;
 import com.store.ecommerce.repository.ProductImageRepository;
 import com.store.ecommerce.repository.ProductRepository;
+import com.store.ecommerce.repository.ReviewRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,14 +29,18 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
+    private final ReviewRepository reviewRepository;
 
     public List<Product> getAllProducts() {
-        return productRepository.findAll();
+        return productRepository.findAll().stream()
+                .map(this::withReviewStats)
+                .toList();
     }
 
     public Product getProductById(Long id) {
-        return productRepository.findById(id)
+        Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
+        return withReviewStats(product);
     }
 
     public PagedResponse<Product> getProductsPaged(int page, int size, String sort,
@@ -59,6 +64,7 @@ public class ProductService {
         } else {
             result = productRepository.findAll(pageable);
         }
+        result.getContent().forEach(this::withReviewStats);
         return PagedResponse.from(result);
     }
 
@@ -100,6 +106,22 @@ public class ProductService {
         product.setDescription(request.getDescription());
         product.setCategory(request.getCategory());
         product.setImageUrl(request.getImageUrl());
+        product.setBrand(request.getBrand());
+        product.setSku(request.getSku());
+        product.setWarranty(request.getWarranty());
+        product.setSpecifications(request.getSpecifications());
+    }
+
+    /** Populates the transient review aggregates used by ProductDto. */
+    private Product withReviewStats(Product product) {
+        if (product.getId() != null) {
+            Double average = reviewRepository.findAverageRatingByProductId(product.getId());
+            product.setAverageRating(average == null
+                    ? null
+                    : Math.round(average * 100.0) / 100.0);
+            product.setReviewCount(reviewRepository.countByProductId(product.getId()));
+        }
+        return product;
     }
 
     public void deleteProduct(Long id) {
@@ -107,11 +129,15 @@ public class ProductService {
     }
 
     public List<Product> searchProducts(String keyword) {
-        return productRepository.findByNameContainingIgnoreCase(keyword);
+        return productRepository.findByNameContainingIgnoreCase(keyword).stream()
+                .map(this::withReviewStats)
+                .toList();
     }
 
     public List<Product> getProductsByCategory(String category) {
-        return productRepository.findByCategory(category);
+        return productRepository.findByCategory(category).stream()
+                .map(this::withReviewStats)
+                .toList();
     }
 
     public Product addImages(Long productId, List<String> imageUrls) {

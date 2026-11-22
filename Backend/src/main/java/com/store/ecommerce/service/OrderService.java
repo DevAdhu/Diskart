@@ -3,6 +3,7 @@ package com.store.ecommerce.service;
 import com.store.ecommerce.exception.BadRequestException;
 import com.store.ecommerce.exception.ConflictException;
 import com.store.ecommerce.exception.ResourceNotFoundException;
+import com.store.ecommerce.model.Address;
 import com.store.ecommerce.model.Order;
 import com.store.ecommerce.model.OrderItem;
 import com.store.ecommerce.model.Product;
@@ -15,11 +16,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class OrderService {
+
+    private static final BigDecimal TAX_RATE = new BigDecimal("0.18");
+    private static final BigDecimal FREE_SHIPPING_THRESHOLD = new BigDecimal("499");
+    private static final BigDecimal SHIPPING_FEE = new BigDecimal("40");
+    private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
@@ -32,6 +39,17 @@ public class OrderService {
      */
     @Transactional
     public Order placeOrder(List<Long> productIds, List<Integer> quantities) {
+        return createPendingOrder(null, productIds, quantities);
+    }
+
+    /**
+     * Shared stock-reservation logic used by both the legacy place-order endpoint
+     * and the Razorpay checkout flow. Prices are always recomputed server-side.
+     * When an address is supplied its details are snapshotted onto the order.
+     */
+    @Transactional
+    public Order createPendingOrder(Address address, List<Long> productIds,
+                                    List<Integer> quantities) {
         if (productIds == null || quantities == null || productIds.isEmpty() || quantities.isEmpty()) {
             throw new BadRequestException("productIds and quantities must not be empty");
         }
@@ -43,8 +61,9 @@ public class OrderService {
 
         Order order = new Order();
         order.setUser(user);
+        applyAddressSnapshot(order, user, address);
 
-        BigDecimal total = BigDecimal.ZERO;
+        BigDecimal subtotal = BigDecimal.ZERO;
 
         for (int i = 0; i < productIds.size(); i++) {
             Long productId = productIds.get(i);
@@ -68,14 +87,52 @@ public class OrderService {
             item.setPrice(product.getPrice());
 
             order.getItems().add(item);
-            total = total.add(product.getPrice().multiply(BigDecimal.valueOf(quantity)));
+            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(quantity)));
 
             product.setStock(available - quantity);
             productRepository.save(product);
         }
 
-        order.setTotalAmount(total);
+        subtotal = subtotal.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal tax = subtotal.multiply(TAX_RATE).setScale(2, RoundingMode.HALF_UP);
+        // Shipping is charged only for small non-empty carts: 0 < subtotal < 499.
+        BigDecimal shippingFee = subtotal.signum() > 0 && subtotal.compareTo(FREE_SHIPPING_THRESHOLD) < 0
+                ? SHIPPING_FEE
+                : ZERO;
+
+        order.setSubtotal(subtotal);
+        order.setTax(tax);
+        order.setShippingFee(shippingFee);
+        order.setTotalAmount(subtotal.add(tax).add(shippingFee).setScale(2, RoundingMode.HALF_UP));
+        order.setStatus(Order.OrderStatus.PENDING);
         return orderRepository.save(order);
+    }
+
+    /** Restores reserved stock, e.g. when a Razorpay payment fails. */
+    @Transactional
+    public void restoreStock(Order order) {
+        for (OrderItem item : order.getItems()) {
+            Product product = productRepository.findByIdForUpdate(item.getProduct().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Product not found: " + item.getProduct().getId()));
+            int current = product.getStock() == null ? 0 : product.getStock();
+            product.setStock(current + item.getQuantity());
+            productRepository.save(product);
+        }
+    }
+
+    private static void applyAddressSnapshot(Order order, User user, Address address) {
+        if (address == null) {
+            return;
+        }
+        order.setRecipientName(user.getName());
+        order.setAddressLine1(address.getLine1());
+        order.setAddressLine2(address.getLine2());
+        order.setCity(address.getCity());
+        order.setState(address.getState());
+        order.setPostalCode(address.getPostalCode());
+        order.setCountry(address.getCountry());
+        order.setPhone(address.getPhone());
     }
 
     public List<Order> getOrdersByUser(Long userId) {

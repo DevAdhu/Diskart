@@ -3,7 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { productAPI } from '../services/api';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
-import { FaShoppingCart, FaSearch } from 'react-icons/fa';
+import { FaShoppingCart, FaSearch, FaStar, FaRegStar } from 'react-icons/fa';
+
+const ProductRating = ({ value, count }) => (
+  <span style={styles.rating} aria-label={`${value} out of 5 stars`}>
+    {[1, 2, 3, 4, 5].map((star) =>
+      star <= Math.round(value) ? (
+        <FaStar key={star} size={12} color="#ff9f00" />
+      ) : (
+        <FaRegStar key={star} size={12} color="#d0d0d0" />
+      )
+    )}
+    <span style={styles.ratingCount}>
+      {Number(value).toFixed(1)} ({count || 0})
+    </span>
+  </span>
+);
 
 const Home = () => {
   const [products, setProducts] = useState([]);
@@ -206,6 +221,14 @@ const Home = () => {
                     {product.name}
                   </p>
                   <p style={styles.category}>{product.category}</p>
+                  {product.averageRating > 0 && (
+                    <p style={styles.ratingRow}>
+                      <ProductRating
+                        value={product.averageRating}
+                        count={product.reviewCount}
+                      />
+                    </p>
+                  )}
                   <p style={styles.price}>
                     ₹{product.price?.toLocaleString('en-IN')}
                   </p>
@@ -392,6 +415,9 @@ const styles = {
     whiteSpace: 'nowrap',
   },
   category: { fontSize: 12, color: '#878787', marginBottom: 6 },
+  ratingRow: { marginBottom: 6 },
+  rating: { display: 'inline-flex', alignItems: 'center', gap: 1, verticalAlign: 'middle' },
+  ratingCount: { fontSize: 11, color: '#878787', marginLeft: 6 },
   price: { fontSize: 16, fontWeight: 700, color: '#212121', marginBottom: 4 },
   stock: { fontSize: 12, color: '#388e3c', marginBottom: 10 },
   addBtn: {

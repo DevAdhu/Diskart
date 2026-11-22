@@ -1,41 +1,23 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { useToast } from '../context/ToastContext';
-import { orderAPI } from '../services/api';
 import { FaTrash, FaPlus, FaMinus } from 'react-icons/fa';
 
 const Cart = () => {
-  const [loading, setLoading] = useState(false);
   const { user } = useAuth();
-  const { cart, updateQty, removeItem, clearCart, total } = useCart();
-  const { showToast } = useToast();
+  const { cart, updateQty, removeItem, total } = useCart();
   const navigate = useNavigate();
 
-  const placeOrder = async () => {
+  // Checkout now owns address selection and Razorpay payment. The legacy
+  // orderAPI.place call still exists in api.js but is no longer used here.
+  const goToCheckout = () => {
     if (!user) {
       navigate('/login');
       return;
     }
-    if (cart.length === 0) {
-      showToast('Cart is empty!', 'error');
-      return;
-    }
-    setLoading(true);
-    try {
-      // The user is identified by the JWT; no userId is sent.
-      await orderAPI.place({
-        productIds: cart.map((i) => i.id),
-        quantities: cart.map((i) => i.qty),
-      });
-      clearCart();
-      showToast('Order placed successfully!', 'success');
-      navigate('/orders');
-    } catch (err) {
-      showToast(err.response?.data?.error || 'Order failed', 'error');
-    }
-    setLoading(false);
+    if (cart.length === 0) return;
+    navigate('/checkout');
   };
 
   if (cart.length === 0) {
@@ -122,12 +104,8 @@ const Cart = () => {
             <span>Total Amount</span>
             <span>₹{total.toLocaleString('en-IN')}</span>
           </div>
-          <button
-            style={styles.orderBtn}
-            onClick={placeOrder}
-            disabled={loading}
-          >
-            {loading ? 'Placing Order...' : 'Place Order'}
+          <button style={styles.orderBtn} onClick={goToCheckout}>
+            Place Order
           </button>
           {!user && (
             <p style={styles.loginNote}>

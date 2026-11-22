@@ -10,6 +10,23 @@ const emptyForm = {
   stock: '',
   category: '',
   imageUrl: '',
+  brand: '',
+  sku: '',
+  warranty: '',
+  specifications: '',
+};
+
+// The admin form keeps specifications as human-readable lines. They are sent
+// as a string; the product page can render strings, arrays or key/value maps.
+const specsToText = (specs) => {
+  if (!specs) return '';
+  if (Array.isArray(specs)) return specs.join('\n');
+  if (typeof specs === 'object') {
+    return Object.entries(specs)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('\n');
+  }
+  return String(specs);
 };
 
 const AdminProducts = () => {
@@ -50,6 +67,10 @@ const AdminProducts = () => {
       stock: product.stock != null ? product.stock : '',
       category: product.category || '',
       imageUrl: product.imageUrl || '',
+      brand: product.brand || '',
+      sku: product.sku || '',
+      warranty: product.warranty || '',
+      specifications: specsToText(product.specifications),
     });
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -71,6 +92,10 @@ const AdminProducts = () => {
       stock: Number(form.stock) || 0,
       category: form.category.trim(),
       imageUrl: form.imageUrl.trim(),
+      brand: form.brand.trim(),
+      sku: form.sku.trim(),
+      warranty: form.warranty.trim(),
+      specifications: form.specifications.trim(),
     };
     try {
       if (editingId) {
@@ -180,6 +205,44 @@ const AdminProducts = () => {
                 value={form.imageUrl}
                 onChange={handleChange}
                 placeholder="https://..."
+              />
+            </label>
+            <label style={styles.field}>
+              Brand
+              <input
+                name="brand"
+                value={form.brand}
+                onChange={handleChange}
+                placeholder="e.g. DisKart"
+              />
+            </label>
+            <label style={styles.field}>
+              SKU
+              <input
+                name="sku"
+                value={form.sku}
+                onChange={handleChange}
+                placeholder="e.g. DK-12345"
+              />
+            </label>
+            <label style={{ ...styles.field, gridColumn: '1 / -1' }}>
+              Warranty
+              <input
+                name="warranty"
+                value={form.warranty}
+                onChange={handleChange}
+                placeholder="e.g. 1 year manufacturer warranty"
+              />
+            </label>
+            <label style={{ ...styles.field, gridColumn: '1 / -1' }}>
+              Specifications (one per line)
+              <textarea
+                name="specifications"
+                value={form.specifications}
+                onChange={handleChange}
+                rows={3}
+                style={styles.textarea}
+                placeholder={'Color: Black\nWeight: 500 g'}
               />
             </label>
           </div>

@@ -72,11 +72,38 @@ export const productAPI = {
 
 export const orderAPI = {
   // The backend derives the customer from the JWT — no userId in the request.
+  // Legacy direct-placement path is kept for backwards compatibility; the UI
+  // now checks out through Razorpay (see paymentAPI).
   place: (data) => API.post('/orders/place', data),
   getMyOrders: () => API.get('/orders/mine'),
   getAllOrders: () => API.get('/orders'),
+  getById: (id) => API.get(`/orders/${id}`),
   updateStatus: (orderId, status) =>
     API.patch(`/orders/${orderId}/status`, null, { params: { status } }),
+};
+
+// Saved shipping addresses for the logged-in user.
+export const addressAPI = {
+  list: () => API.get('/addresses'),
+  create: (data) => API.post('/addresses', data),
+  update: (id, data) => API.put(`/addresses/${id}`, data),
+  remove: (id) => API.delete(`/addresses/${id}`),
+};
+
+// Razorpay checkout: create an order, verify a successful payment, or record a
+// failure/dismiss. Amounts sent to Razorpay are in paise.
+export const paymentAPI = {
+  createRazorpayOrder: (data) => API.post('/payments/razorpay/order', data),
+  verify: (data) => API.post('/payments/razorpay/verify', data),
+  failure: (data) => API.post('/payments/razorpay/failure', data),
+};
+
+// Product reviews (public read, authenticated write).
+export const reviewAPI = {
+  list: (productId) => API.get(`/products/${productId}/reviews`),
+  add: (productId, data) => API.post(`/products/${productId}/reviews`, data),
+  remove: (productId, reviewId) =>
+    API.delete(`/products/${productId}/reviews/${reviewId}`),
 };
 
 export const userAPI = {

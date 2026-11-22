@@ -11,6 +11,9 @@ import Register from './pages/Register';
 import ProductDetail from './pages/ProductDetail';
 import Orders from './pages/Orders';
 import Cart from './pages/Cart';
+import Checkout from './pages/Checkout';
+import AddressBook from './pages/AddressBook';
+import Invoice from './pages/Invoice';
 import AdminProducts from './pages/AdminProducts';
 import NotFound from './pages/NotFound';
 import './App.css';
@@ -37,10 +40,34 @@ function App() {
                 }
               />
               <Route
+                path="/checkout"
+                element={
+                  <ProtectedRoute>
+                    <Checkout />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/addresses"
+                element={
+                  <ProtectedRoute>
+                    <AddressBook />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/orders"
                 element={
                   <ProtectedRoute>
                     <Orders />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/orders/:id/invoice"
+                element={
+                  <ProtectedRoute>
+                    <Invoice />
                   </ProtectedRoute>
                 }
               />

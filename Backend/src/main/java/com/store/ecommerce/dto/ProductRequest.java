@@ -37,4 +37,16 @@ public class ProductRequest {
     @NotBlank(message = "category is required")
     @Size(max = 100, message = "category must be at most 100 characters")
     private String category;
+
+    @Size(max = 100, message = "brand must be at most 100 characters")
+    private String brand;
+
+    @Size(max = 100, message = "sku must be at most 100 characters")
+    private String sku;
+
+    @Size(max = 200, message = "warranty must be at most 200 characters")
+    private String warranty;
+
+    @Size(max = 4000, message = "specifications must be at most 4000 characters")
+    private String specifications;
 }

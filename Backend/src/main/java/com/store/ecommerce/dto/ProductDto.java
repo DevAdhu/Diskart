@@ -14,4 +14,14 @@ public class ProductDto {
     private String category;
     private String imageUrl;
     private List<String> images;
+
+    /* Optional richer details. */
+    private String brand;
+    private String sku;
+    private String warranty;
+    private String specifications;
+
+    /** Null when the product has no reviews yet. */
+    private Double averageRating;
+    private long reviewCount;
 }

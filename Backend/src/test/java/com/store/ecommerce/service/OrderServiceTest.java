@@ -1,6 +1,7 @@
 package com.store.ecommerce.service;
 
 import com.store.ecommerce.exception.BadRequestException;
+import com.store.ecommerce.model.Address;
 import com.store.ecommerce.exception.ConflictException;
 import com.store.ecommerce.model.Order;
 import com.store.ecommerce.model.Product;
@@ -101,11 +102,46 @@ class OrderServiceTest {
 
         assertThat(result.getUser()).isSameAs(buyer);
         assertThat(result.getItems()).hasSize(1);
-        assertThat(result.getTotalAmount()).isEqualByComparingTo("20.00");
+        assertThat(result.getStatus()).isEqualTo(Order.OrderStatus.PENDING);
+        assertThat(result.getSubtotal()).isEqualByComparingTo("20.00");
+        assertThat(result.getTax()).isEqualByComparingTo("3.60");
+        assertThat(result.getShippingFee()).isEqualByComparingTo("40");
+        // Final payable = subtotal + tax + shippingFee.
+        assertThat(result.getTotalAmount()).isEqualByComparingTo("63.60");
         assertThat(product.getStock()).isEqualTo(3);
         verify(productRepository).findByIdForUpdate(1L);
         verify(productRepository).save(product);
         verify(orderRepository).save(any(Order.class));
+    }
+
+    @Test
+    void freeShippingForLargeCartAndAddressSnapshot() {
+        User buyer = user(7L, "buyer@example.com", User.Role.CUSTOMER);
+        authenticate("buyer@example.com");
+        when(userRepository.findByEmail("buyer@example.com")).thenReturn(Optional.of(buyer));
+        when(productRepository.findByIdForUpdate(1L))
+                .thenReturn(Optional.of(product(1L, "Shoe", "300.00", 5)));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order saved = invocation.getArgument(0);
+            saved.setId(101L);
+            return saved;
+        });
+
+        Address address = new Address();
+        address.setLine1("1 Main St");
+        address.setCity("Delhi");
+        address.setPostalCode("110001");
+        address.setCountry("India");
+
+        Order result = orderService.createPendingOrder(address, List.of(1L), List.of(2));
+
+        assertThat(result.getSubtotal()).isEqualByComparingTo("600.00");
+        assertThat(result.getTax()).isEqualByComparingTo("108.00");
+        assertThat(result.getShippingFee()).isEqualByComparingTo("0");
+        assertThat(result.getTotalAmount()).isEqualByComparingTo("708.00");
+        assertThat(result.getRecipientName()).isEqualTo("Buyer");
+        assertThat(result.getAddressLine1()).isEqualTo("1 Main St");
+        assertThat(result.getCity()).isEqualTo("Delhi");
     }
 
     @Test
